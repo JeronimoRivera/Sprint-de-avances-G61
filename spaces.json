@@ -1,0 +1,44 @@
+[
+  {
+    "id": "sala-a101",
+    "nombre": "Sala A101",
+    "ubicacion": "Edificio A, primer piso",
+    "capacidad": 24,
+    "caracteristicas": ["Proyector", "Pizarra", "Aire acondicionado"]
+  },
+  {
+    "id": "sala-b204",
+    "nombre": "Sala B204",
+    "ubicacion": "Edificio B, segundo piso",
+    "capacidad": 18,
+    "caracteristicas": ["Pantalla", "Videoconferencia"]
+  },
+  {
+    "id": "auditorio-central",
+    "nombre": "Auditorio Central",
+    "ubicacion": "Edificio Central",
+    "capacidad": 120,
+    "caracteristicas": ["Proyector", "Audio", "Escenario"]
+  },
+  {
+    "id": "lab-redes",
+    "nombre": "Laboratorio de Redes",
+    "ubicacion": "Edificio C, primer piso",
+    "capacidad": 20,
+    "caracteristicas": ["20 estaciones", "Switches", "Pizarra"]
+  },
+  {
+    "id": "lab-quimica",
+    "nombre": "Laboratorio de Química",
+    "ubicacion": "Edificio D, planta baja",
+    "capacidad": 16,
+    "caracteristicas": ["Campana extractora", "Mesas de laboratorio"]
+  },
+  {
+    "id": "lab-computo",
+    "nombre": "Laboratorio de Cómputo",
+    "ubicacion": "Biblioteca, tercer piso",
+    "capacidad": 30,
+    "caracteristicas": ["30 computadoras", "Proyector", "Aire acondicionado"]
+  }
+]
