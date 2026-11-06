@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 import 'app_services.dart';
+import 'business_rules.dart';
+import 'error_messages.dart';
 
 class AccessScreen extends StatefulWidget {
   const AccessScreen({required this.role, super.key});
@@ -42,7 +44,7 @@ class _AccessScreenState extends State<AccessScreen> {
         });
       }
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -54,7 +56,7 @@ class _AccessScreenState extends State<AccessScreen> {
       await _load();
       if (mounted) _show(message);
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     }
   }
 
@@ -84,8 +86,7 @@ class _AccessScreenState extends State<AccessScreen> {
                 final reservation = _reservations[index];
                 final start = reservation.startsAt;
                 final now = DateTime.now();
-                final inSlot = !now.isBefore(start) &&
-                    now.isBefore(start.add(const Duration(hours: 1)));
+                final inSlot = canCheckInReservation(start, now);
                 final ended =
                     !now.isBefore(start.add(const Duration(hours: 1)));
                 return Card(

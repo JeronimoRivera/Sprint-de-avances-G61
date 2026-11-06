@@ -5,6 +5,8 @@ import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+import 'business_rules.dart';
+import 'error_messages.dart';
 import 'local_database.dart' hide Reservation, Space;
 import 'models.dart';
 
@@ -31,7 +33,7 @@ class SpaceRepository {
           .get(Uri.parse(baseUrl))
           .timeout(const Duration(seconds: 10));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw StateError('El catálogo respondió ${response.statusCode}');
+        throw StateError('No se pudo cargar el catálogo.');
       }
       final decoded = jsonDecode(response.body) as List<dynamic>;
       final spaces = decoded
@@ -44,12 +46,12 @@ class SpaceRepository {
           .customSelect('SELECT * FROM spaces ORDER BY name')
           .get();
       if (cached.isEmpty) {
-        throw StateError(
-            'No se pudo cargar el catálogo y no hay caché: $error');
+        rethrow;
       }
       return SpaceLoadResult(
         cached.map((row) => Space.fromCache(row.data)).toList(),
-        warning: 'Sin conexión: se muestra el catálogo guardado. $error',
+        warning:
+            'No se pudo actualizar el catálogo; se muestra el guardado. ${errorMessage(error)}',
       );
     }
   }
@@ -87,7 +89,7 @@ class ReservationRepository {
     required String reason,
   }) async {
     _validateSlot(date, hour);
-    if (attendees < 1 || attendees > space.capacity) {
+    if (!isValidAttendeeCount(attendees, space.capacity)) {
       throw StateError(
           'Los asistentes deben estar entre 1 y ${space.capacity}.');
     }
@@ -120,7 +122,7 @@ class ReservationRepository {
       }
       return 'Solicitud guardada y sincronizada.';
     } catch (error) {
-      return 'Guardada en este dispositivo; se sincronizará al recuperar conexión. $error';
+      return 'Guardada en este dispositivo; se sincronizará al recuperar conexión. ${errorMessage(error)}';
     }
   }
 
@@ -136,14 +138,14 @@ class ReservationRepository {
         final existing = await reservationRef.get();
         if (existing.exists) {
           final remote = Reservation.fromFirestore(existing.data()!);
-          if (remote.status == 'SOLICITADA' || remote.status == 'CONFIRMADA') {
+          if (isValidReservationTransition(remote.status, 'CANCELADA')) {
             try {
               await _cancelRemote(local, uid);
             } catch (error) {
               await database.saveReservation({
                 ...local.toLocal(),
                 'syncStatus': 'conflicto',
-                'conflictReason': '$error',
+                'conflictReason': errorMessage(error),
               });
               continue;
             }
@@ -184,9 +186,6 @@ class ReservationRepository {
           'syncStatus': 'conflicto',
           'conflictReason': slotTakenMessage,
         });
-      } on FirebaseException catch (error) {
-        if (error.code == 'permission-denied') rethrow;
-        throw StateError(_firebaseMessage(error));
       }
     }
   }
@@ -235,13 +234,10 @@ class ReservationRepository {
     if (reservation.userId != uid) {
       throw StateError('Solo el propietario puede cancelar la reserva.');
     }
-    if (reservation.status != 'SOLICITADA' &&
-        reservation.status != 'CONFIRMADA') {
+    if (!isValidReservationTransition(reservation.status, 'CANCELADA')) {
       throw StateError('Esta reserva ya no se puede cancelar.');
     }
-    if (DateTime.now().isAfter(
-      reservation.startsAt.subtract(const Duration(hours: 1)),
-    )) {
+    if (!canCancelReservation(reservation.startsAt, DateTime.now())) {
       throw StateError(
         'No se puede cancelar con menos de una hora de anticipación.',
       );
@@ -274,11 +270,11 @@ class ReservationRepository {
         throw StateError('Solo el propietario puede cancelar la reserva.');
       }
       final status = data['status'] as String;
-      if (status != 'SOLICITADA' && status != 'CONFIRMADA') {
+      if (!isValidReservationTransition(status, 'CANCELADA')) {
         throw StateError('Esta reserva ya no se puede cancelar.');
       }
       final start = _startFrom(data);
-      if (DateTime.now().isAfter(start.subtract(const Duration(hours: 1)))) {
+      if (!canCancelReservation(start, DateTime.now())) {
         throw StateError(
           'No se puede cancelar con menos de una hora de anticipación.',
         );
@@ -306,8 +302,10 @@ class ReservationRepository {
     if (actorUid == reservation.userId) {
       throw StateError('No puedes confirmar tu propia reserva.');
     }
-    if (reservation.attendees < 1 ||
-        reservation.attendees > reservation.capacity) {
+    if (!isValidAttendeeCount(
+      reservation.attendees,
+      reservation.capacity,
+    )) {
       throw StateError('La cantidad supera la capacidad del espacio.');
     }
     if (!reservation.startsAt.isAfter(DateTime.now())) {
@@ -320,7 +318,11 @@ class ReservationRepository {
     await firestore.runTransaction((transaction) async {
       final doc = await transaction.get(ref);
       final slot = await transaction.get(slotRef);
-      if (!doc.exists || doc.data()?['status'] != 'SOLICITADA') {
+      if (!doc.exists ||
+          !isValidReservationTransition(
+            doc.data()?['status'],
+            'CONFIRMADA',
+          )) {
         throw StateError('La solicitud ya no está disponible para confirmar.');
       }
       final slotStatus = slot.data()?['status'];
@@ -356,7 +358,11 @@ class ReservationRepository {
     final ref = _reservations.doc(reservation.id);
     await firestore.runTransaction((transaction) async {
       final doc = await transaction.get(ref);
-      if (!doc.exists || doc.data()?['status'] != 'SOLICITADA') {
+      if (!doc.exists ||
+          !isValidReservationTransition(
+            doc.data()?['status'],
+            'RECHAZADA',
+          )) {
         throw StateError('Solo se puede rechazar una solicitud pendiente.');
       }
       transaction.update(ref, {
@@ -426,14 +432,17 @@ class ReservationRepository {
     final ref = _reservations.doc(reservation.id);
     await firestore.runTransaction((transaction) async {
       final doc = await transaction.get(ref);
-      if (!doc.exists || doc.data()?['status'] != 'CONFIRMADA') {
+      if (!doc.exists ||
+          !isValidReservationTransition(
+            doc.data()?['status'],
+            'EN_USO',
+          )) {
         throw StateError(
             'Solo se admite el ingreso de una reserva confirmada.');
       }
       final start = _startFrom(doc.data()!);
       final now = DateTime.now();
-      if (now.isBefore(start) ||
-          !now.isBefore(start.add(const Duration(hours: 1)))) {
+      if (!canCheckInReservation(start, now)) {
         throw StateError(
             'El ingreso solo se permite dentro de la franja reservada.');
       }
@@ -454,7 +463,11 @@ class ReservationRepository {
     final ref = _reservations.doc(reservation.id);
     await firestore.runTransaction((transaction) async {
       final doc = await transaction.get(ref);
-      if (!doc.exists || doc.data()?['status'] != 'EN_USO') {
+      if (!doc.exists ||
+          !isValidReservationTransition(
+            doc.data()?['status'],
+            'FINALIZADA',
+          )) {
         throw StateError(
             'Solo se puede registrar salida de una reserva en uso.');
       }
@@ -475,7 +488,11 @@ class ReservationRepository {
     final ref = _reservations.doc(reservation.id);
     await firestore.runTransaction((transaction) async {
       final doc = await transaction.get(ref);
-      if (!doc.exists || doc.data()?['status'] != 'CONFIRMADA') {
+      if (!doc.exists ||
+          !isValidReservationTransition(
+            doc.data()?['status'],
+            'AUSENTE',
+          )) {
         throw StateError('Solo se puede marcar ausencia en una confirmada.');
       }
       if (DateTime.now()
@@ -487,13 +504,10 @@ class ReservationRepository {
   }
 
   void _validateSlot(DateTime date, int hour) {
-    if (hour < 7 || hour > 19) {
+    if (!isValidReservationHour(hour)) {
       throw StateError('Las franjas disponibles van de 07:00 a 20:00.');
     }
-    final now = DateTime.now();
-    final day = DateTime(date.year, date.month, date.day);
-    final today = DateTime(now.year, now.month, now.day);
-    if (!day.isAfter(today)) {
+    if (!isFutureReservationDate(date, DateTime.now())) {
       throw StateError('Selecciona una fecha futura.');
     }
   }
@@ -511,15 +525,5 @@ class ReservationRepository {
       int.parse(date.substring(8, 10)),
       (data['hour'] as num).toInt(),
     );
-  }
-
-  String _firebaseMessage(FirebaseException error) {
-    if (error.code == 'permission-denied') {
-      return 'No tienes permisos para realizar esta acción.';
-    }
-    if (error.code == 'unavailable' || error.code == 'network-request-failed') {
-      return 'Sin conexión. El cambio queda pendiente de sincronización.';
-    }
-    return error.message ?? error.code;
   }
 }

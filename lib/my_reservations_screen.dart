@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 import 'app_services.dart';
+import 'business_rules.dart';
+import 'error_messages.dart';
 
 class MyReservationsScreen extends StatefulWidget {
   const MyReservationsScreen({
@@ -34,12 +36,14 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
         await reservationRepository.synchronize(widget.uid);
         await reservationRepository.refreshMine(widget.uid);
       } catch (error) {
-        if (mounted) _show('Actualización remota pendiente: $error');
+        if (mounted) {
+          _show('Actualización remota pendiente: ${errorMessage(error)}');
+        }
       }
       final rows = await reservationRepository.localForUser(widget.uid);
       if (mounted) setState(() => _reservations = rows);
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -55,7 +59,7 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
       await _refresh();
       if (mounted) _show('Reserva cancelada.');
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     }
   }
 
@@ -83,8 +87,10 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
               itemCount: _reservations.length,
               itemBuilder: (context, index) {
                 final reservation = _reservations[index];
-                final canCancel = reservation.status == 'SOLICITADA' ||
-                    reservation.status == 'CONFIRMADA';
+                final canCancel = isValidReservationTransition(
+                  reservation.status,
+                  'CANCELADA',
+                );
                 return Card(
                   child: ListTile(
                     title: Text(reservation.spaceName),

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'error_messages.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'app_services.dart';
@@ -69,7 +70,7 @@ class SessionGate extends StatelessWidget {
                       children: [
                         Text(
                           'No se pudo cargar el perfil: '
-                          '${profileSnapshot.error}',
+                          '${errorMessage(profileSnapshot.error!)}',
                         ),
                         TextButton(
                           onPressed: authRepository.signOut,

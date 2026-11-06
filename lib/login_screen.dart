@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_services.dart';
+import 'error_messages.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -42,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (error) {
-      _show('Ocurrió un error: $error');
+      _show(errorMessage(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'business_rules.dart';
 import 'models.dart';
 import 'app_services.dart';
+import 'error_messages.dart';
 
 class AdminAgendaScreen extends StatefulWidget {
   const AdminAgendaScreen({
@@ -45,7 +47,7 @@ class _AdminAgendaScreenState extends State<AdminAgendaScreen> {
         });
       }
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -61,7 +63,7 @@ class _AdminAgendaScreenState extends State<AdminAgendaScreen> {
       await _load();
       if (mounted) _show('Reserva confirmada.');
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     }
   }
 
@@ -101,7 +103,7 @@ class _AdminAgendaScreenState extends State<AdminAgendaScreen> {
       await _load();
       if (mounted) _show('Solicitud rechazada.');
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     }
   }
 
@@ -146,7 +148,10 @@ class _AdminAgendaScreenState extends State<AdminAgendaScreen> {
                         ),
                         Text('Estado: ${reservation.status}'),
                         Text('Motivo: ${reservation.reason}'),
-                        if (reservation.status == 'SOLICITADA')
+                        if (isValidReservationTransition(
+                          reservation.status,
+                          'CONFIRMADA',
+                        ))
                           Wrap(
                             spacing: 8,
                             children: [
@@ -207,7 +212,7 @@ class _SlotManagementScreenState extends State<SlotManagementScreen> {
     } catch (error) {
       if (mounted) {
         setState(() => _loading = false);
-        _show('$error');
+        _show(errorMessage(error));
       }
     }
   }
@@ -222,7 +227,7 @@ class _SlotManagementScreenState extends State<SlotManagementScreen> {
       );
       if (mounted) setState(() => _status = status);
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     }
   }
 
@@ -257,7 +262,7 @@ class _SlotManagementScreenState extends State<SlotManagementScreen> {
         _show(wasBlocked ? 'Franja desbloqueada.' : 'Franja bloqueada.');
       }
     } catch (error) {
-      if (mounted) _show('$error');
+      if (mounted) _show(errorMessage(error));
     }
   }
 

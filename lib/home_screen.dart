@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'access_screen.dart';
 import 'admin_screen.dart';
 import 'app_services.dart';
+import 'error_messages.dart';
 import 'my_reservations_screen.dart';
 import 'spaces_screen.dart';
 
@@ -71,7 +72,9 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo sincronizar: $error')),
+            SnackBar(
+              content: Text('No se pudo sincronizar: ${errorMessage(error)}'),
+            ),
           );
         }
       }

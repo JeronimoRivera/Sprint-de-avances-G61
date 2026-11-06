@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
 import 'app_services.dart';
+import 'business_rules.dart';
+import 'error_messages.dart';
 
 class SpacesScreen extends StatefulWidget {
   const SpacesScreen({required this.uid, super.key});
@@ -45,10 +47,10 @@ class _SpacesScreenState extends State<SpacesScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = '$error';
+        _error = errorMessage(error);
         _loading = false;
       });
-      _show('$error');
+      _show(errorMessage(error));
     }
   }
 
@@ -168,7 +170,7 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+            .showSnackBar(SnackBar(content: Text(errorMessage(error))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -221,8 +223,7 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
                     validator: (value) {
                       final count = int.tryParse(value ?? '');
                       if (count == null ||
-                          count < 1 ||
-                          count > widget.space.capacity) {
+                          !isValidAttendeeCount(count, widget.space.capacity)) {
                         return 'Indica entre 1 y ${widget.space.capacity}.';
                       }
                       return null;
